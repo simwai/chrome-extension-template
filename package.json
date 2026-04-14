@@ -21,7 +21,6 @@
     "@release-it/conventional-changelog": "^9.0.0",
     "@sindresorhus/tsconfig": "^5.0.0",
     "@types/chrome": "^0.0.266",
-    "@types/sinon": "^17.0.3",
     "ava": "^6.1.2",
     "bestzip": "^2.2.1",
     "copyfiles": "^2.4.1",
@@ -29,7 +28,6 @@
     "lint-staged": "^15.0.0",
     "release-it": "^17.0.0",
     "rimraf": "^5.0.5",
-    "sinon": "^17.0.1",
     "tsx": "^4.7.2",
     "xo": "^0.58.0"
   },
