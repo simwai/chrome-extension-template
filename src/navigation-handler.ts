@@ -1,145 +1,85 @@
-import {type WebsiteData} from './types.js'
+// ---------------------------------------------------------------------------
+// navigation-handler.ts — core navigation interception logic
+//
+// WHY: the chrome global is injected as a constructor argument rather than
+// referenced directly. This makes the entire class testable in Node.js via
+// sinon stubs — no Chrome runtime required.
+//
+// The handler is intentionally thin: it orchestrates the flow (validate →
+// read settings → act) but delegates validation and host lookup to dedicated
+// classes so each concern stays independently testable.
+// ---------------------------------------------------------------------------
+
+import {type HostRepository} from './host-repository.js'
 import {Validator} from './validator.js'
-import {WebsiteRepository} from './website-repository.js'
 
 export class NavigationHandler {
+  // Exposed publicly so tests can assert on interactions if needed.
   public readonly chrome: any
-  private readonly validator: Validator
-  private readonly websiteRepository: WebsiteRepository
 
-  public constructor(websitesData: WebsiteData[], chrome: any) {
-    this.websiteRepository = new WebsiteRepository(websitesData)
-    this.validator = new Validator(this.websiteRepository)
+  private readonly validator: Validator
+  private readonly hostRepository: HostRepository
+
+  public constructor(hostRepository: HostRepository, chrome: any) {
+    this.hostRepository = hostRepository
+    this.validator = new Validator(this.hostRepository)
     this.chrome = chrome
   }
 
-  public async generateAmazonAffiliateLink(
-    url: string,
-    affiliateId: string,
-  ): Promise<string> {
-    if (affiliateId.length === 0) {
-      console.warn("Didn't modify URL because no affiliate ID was provided")
-      return url
-    }
+  /**
+   * Entry point called by the webNavigation.onBeforeNavigate listener.
+   * Guard conditions exit early — happy path flows straight through.
+   */
+  public async handleNavigation(details: chrome.webNavigation.WebNavigationUrlCallbackDetails): Promise<void> {
+    const url = new URL(details.url)
 
+    // 1. Check the host is one we care about.
+    if (!this.validator.isSupportedHost(url)) return
+
+    // 2. Apply any additional URL-pattern rules.
+    if (!this.validator.isActionablePage(url)) return
+
+    // 3. Read user settings from synced storage.
+    let settings: Record<string, any>
     try {
-      const parsedUrl = new URL(url)
-      const isSearchPage =
-        parsedUrl.pathname.includes('/s') && parsedUrl.search.includes('k=')
-
-      // Remove existing referral if present
-      parsedUrl.href = parsedUrl.href.replaceAll(/\/ref=([^/]*)/g, '')
-
-      if (!isSearchPage && !parsedUrl.pathname.includes('/ref=nosim')) {
-        parsedUrl.pathname += '/ref=nosim'
-      }
-
-      parsedUrl.searchParams.set('tag', affiliateId)
-      return parsedUrl.href
+      settings = await this.getSettings()
     } catch (error) {
-      console.error('Error generating affiliate link:', error)
-      return url
-    }
-  }
-
-  public async handleNavigation(details: any): Promise<void> {
-    const currentWebsite = new URL(details.url)
-    const websiteKey = this.determineWebsiteKey(currentWebsite)
-
-    if (
-      !this.validator.isSupportedWebsite(currentWebsite) ||
-      !this.validator.validateAmazonWebsite(currentWebsite)
-    ) {
+      console.error('[chrome-extension-template] Failed to read settings:', error)
       return
     }
 
-    let affiliateId: string | undefined
-    try {
-      affiliateId = await this.getAffiliateIdForWebsite(websiteKey)
-      if (!affiliateId) {
-        console.log('Affiliate ID is not set.')
-        return
-      }
-    } catch (error) {
-      console.error('Failed to get chrome storage. Refresh page.\n', error)
-      return
-    }
+    // 4. Guard: respect the user's enabled toggle.
+    if (settings['enabled'] === false) return
 
-    console.log('Found affiliate ID in LocalStorage: ' + affiliateId)
-    const modifiedURL = await this.generateAffiliateLink(
-      details.url,
-      affiliateId,
-      websiteKey,
-    )
-
-    if (modifiedURL !== details.url) {
-      console.log('Modded URL:', modifiedURL)
-      this.redirectUser(details.tabId, modifiedURL)
-    }
+    // 5. TODO: implement your extension's core action here.
+    //    Examples:
+    //      - Redirect the tab:       this.redirectTab(details.tabId, newUrl)
+    //      - Execute a content script injected via scripting API
+    //      - Post a message to the offscreen document
+    console.log('[chrome-extension-template] Acting on navigation:', details.url)
   }
 
-  private determineWebsiteKey(url: URL): string {
-    return url.href.includes('amazon') && !url.href.includes('geni.us')
-      ? 'amazon'
-      : url.href.includes('geni.us')
-        ? 'genius'
-        : ''
-  }
+  // ---------------------------------------------------------------------------
+  // Private helpers
+  // ---------------------------------------------------------------------------
 
-  private async getAffiliateIdForWebsite(
-    websiteKey: string,
-  ): Promise<string | undefined> {
-    return new Promise((resolve) => {
-      this.chrome.storage.sync.get(
-        `${websiteKey}AffiliateId`,
-        (result: Record<string, any>) => {
-          resolve(result[`${websiteKey}AffiliateId`])
-        },
-      )
+  private async getSettings(): Promise<Record<string, any>> {
+    return new Promise((resolve, reject) => {
+      this.chrome.storage.sync.get(null, (result: Record<string, any>) => {
+        if (this.chrome.runtime.lastError) {
+          reject(this.chrome.runtime.lastError)
+        } else {
+          resolve(result)
+        }
+      })
     })
   }
 
-  private generateGeniusAffiliateLink(
-    url: string,
-    affiliateId: string,
-  ): string {
-    try {
-      const parsedUrl = new URL(url)
-      parsedUrl.searchParams.delete('TSID')
-      const proxyUrl = new URL(
-        decodeURIComponent(parsedUrl.searchParams.get('GR_URL') ?? ''),
-      )
-      proxyUrl.searchParams.set('tag', affiliateId)
-      const encodedProxyUrl = encodeURIComponent(proxyUrl.toString())
-      parsedUrl.searchParams.set('GR_URL', encodedProxyUrl)
-      return parsedUrl.toString()
-    } catch {
-      return url
-    }
-  }
-
-  private async generateAffiliateLink(
-    url: string,
-    affiliateId: string,
-    websiteKey: string,
-  ): Promise<string> {
-    console.log('Generating affiliate URL...')
-    switch (websiteKey) {
-      case 'amazon': {
-        return this.generateAmazonAffiliateLink(url, affiliateId)
-      }
-
-      case 'genius': {
-        return this.generateGeniusAffiliateLink(url, affiliateId)
-      }
-
-      default: {
-        return url
-      }
-    }
-  }
-
-  private redirectUser(tabId: number, url: string): void {
+  /**
+   * Redirects the active tab to a new URL.
+   * Call this from handleNavigation() once you have computed the target URL.
+   */
+  protected redirectTab(tabId: number, url: string): void {
     this.chrome.tabs.update(tabId, {url})
   }
 }

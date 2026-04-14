@@ -1,46 +1,51 @@
-type StorageItems = Record<string, any>
+// ---------------------------------------------------------------------------
+// options.ts — options page logic
+//
+// WHY chrome.storage.sync: settings are automatically replicated across the
+// user's Chrome profile on all devices. No backend or account system needed.
+//
+// UX pattern: write on every input event (no save button). This matches
+// Chrome's own extension UX guidelines and reduces friction.
+// ---------------------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', async () => {
   await restoreOptions()
-  const inputElement = document.querySelector<HTMLInputElement>(
-    '#amazon-affiliate-id',
-  )
-  if (inputElement) {
-    inputElement.addEventListener('input', handleInputChange)
-  }
+
+  // Wire up change listeners for every settings input.
+  // TODO: add your own input IDs here.
+  document
+    .querySelector<HTMLInputElement>('#enabled')
+    ?.addEventListener('change', handleEnabledChange)
 })
 
-let amazonAffiliateId = ''
+// ---------------------------------------------------------------------------
+// Storage helpers
+// ---------------------------------------------------------------------------
 
-export async function saveOptions(): Promise<void> {
-  await chrome.storage.sync.set({amazonAffiliateId})
-  console.log('Options saved:', amazonAffiliateId)
+export async function saveOptions(patch: Record<string, unknown>): Promise<void> {
+  await chrome.storage.sync.set(patch)
+  console.log('[chrome-extension-template] Options saved:', patch)
 }
 
 export async function restoreOptions(): Promise<void> {
-  const items: StorageItems = await new Promise((resolve) => {
-    chrome.storage.sync.get({amazonAffiliateId: ''}, resolve)
+  const stored = await chrome.storage.sync.get({
+    // Provide defaults for every key so a fresh install is never undefined.
+    // TODO: add your own defaults here.
+    enabled: true,
   })
 
-  const amazonAffiliateIdInput = document.querySelector<HTMLInputElement>(
-    '#amazon-affiliate-id',
-  )
-  if (amazonAffiliateIdInput) {
-    amazonAffiliateIdInput.value = items['amazonAffiliateId'] || ''
-    amazonAffiliateIdInput.setAttribute(
-      'placeholder',
-      items['amazonAffiliateId']?.length > 0
-        ? items['amazonAffiliateId']
-        : 'Enter your Amazon affiliate ID',
-    )
-    amazonAffiliateId = items['amazonAffiliateId']
+  const enabledInput = document.querySelector<HTMLInputElement>('#enabled')
+  if (enabledInput) {
+    enabledInput.checked = stored['enabled'] as boolean
   }
 }
 
-export async function handleInputChange(event: Event): Promise<void> {
+// ---------------------------------------------------------------------------
+// Event handlers — one per setting
+// TODO: duplicate this pattern for each additional setting you add.
+// ---------------------------------------------------------------------------
+
+export async function handleEnabledChange(event: Event): Promise<void> {
   const target = event.target as HTMLInputElement
-  if (target && target.id === 'amazon-affiliate-id') {
-    amazonAffiliateId = target.value
-    await saveOptions()
-  }
+  await saveOptions({enabled: target.checked})
 }

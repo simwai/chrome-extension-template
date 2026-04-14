@@ -1,145 +1,84 @@
-/* eslint-disable import/no-named-as-default-member */
-import anyTest, {type TestFn} from 'ava'
+import test from 'ava'
 import sinon from 'sinon'
 import {NavigationHandler} from '../navigation-handler.js'
-import {websitesData} from '../background.js'
-import {type TestContext, type MockChrome} from './test-types.js'
+import {HostRepository} from '../host-repository.js'
+import {type ChromeStub} from './test-types.js'
 
-type ExtendedTestContext = TestContext & {
-  lastUpdatedTabUrl?: string
-  navigationHandler: NavigationHandler
-}
-const test: TestFn<ExtendedTestContext> =
-  anyTest as unknown as TestFn<ExtendedTestContext>
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-test.beforeEach((t) => {
-  const mockAffiliateId = 'EXAMPLE'
-  const chromeMock: MockChrome = {
-    runtime: {
-      id: mockAffiliateId,
-    },
+function makeChrome(overrides?: Partial<ChromeStub>): ChromeStub {
+  return {
     storage: {
       sync: {
-        get: sinon.stub().callsFake((key, callback) => {
-          console.log('Called storage.sync.get with key:', key)
-          const response = {[key as string]: mockAffiliateId}
-          callback(response)
+        get: sinon.stub().callsFake((_keys, cb) => {
+          cb({enabled: true})
         }),
+        set: sinon.stub().resolves(),
       },
     },
     tabs: {
-      update: sinon.spy((_tabId: number, updateProperties: {url: string}) => {
-        console.log('Updated tab with properties:', updateProperties)
-        t.context.lastUpdatedTabUrl = updateProperties.url
-      }),
+      update: sinon.stub(),
     },
+    runtime: {
+      lastError: undefined,
+    },
+    ...overrides,
   }
+}
 
-  t.context = {
-    affiliateId: mockAffiliateId,
-    navigationHandler: new NavigationHandler(websitesData, chromeMock),
-  }
+function makeDetails(url: string, tabId = 1): chrome.webNavigation.WebNavigationUrlCallbackDetails {
+  return {url, tabId, frameId: 0, parentFrameId: -1, processId: 0, timeStamp: Date.now()}
+}
+
+const hosts = [{hostSuffix: 'example.com'}]
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+test('handleNavigation does nothing for an unsupported host', async (t) => {
+  const chrome = makeChrome()
+  const handler = new NavigationHandler(new HostRepository(hosts), chrome)
+
+  await handler.handleNavigation(makeDetails('https://unrelated.com/page'))
+
+  t.false((chrome.storage.sync.get as sinon.SinonStub).called)
 })
 
-test('generateAmazonAffiliateLink should modify the URL with affiliate tag and add ref=nosim', async (t) => {
-  const originalUrl =
-    'https://www.amazon.com/dp/B0BKC67D3V?tag=oldTag&linkCode=ogi&th=1&psc=1'
-  const expectedUrl =
-    'https://www.amazon.com/dp/B0BKC67D3V/ref=nosim?tag=' +
-    t.context.affiliateId +
-    '&linkCode=ogi&th=1&psc=1'
+test('handleNavigation reads settings for a supported host', async (t) => {
+  const chrome = makeChrome()
+  const handler = new NavigationHandler(new HostRepository(hosts), chrome)
 
-  const modifiedUrl =
-    await t.context.navigationHandler.generateAmazonAffiliateLink(
-      originalUrl,
-      t.context.affiliateId,
-    )
+  await handler.handleNavigation(makeDetails('https://example.com/page'))
 
-  t.is(modifiedUrl, expectedUrl)
+  t.true((chrome.storage.sync.get as sinon.SinonStub).called)
 })
 
-test('generateAmazonAffiliateLink should modify the Amazon search URL with affiliate tag and not add ref=nosim', async (t) => {
-  const originalUrl =
-    'https://www.amazon.de/s?field-keywords=apple+airpods+wireless+ear+buds+bluetooth+headphones+with+lightning+charging+case+included+over+24+hours+of+battery+life+effortless+setup+for+iphone&geniuslink=true&tag=oldTag'
-  const expectedUrl =
-    'https://www.amazon.de/s?field-keywords=apple+airpods+wireless+ear+buds+bluetooth+headphones+with+lightning+charging+case+included+over+24+hours+of+battery+life+effortless+setup+for+iphone&geniuslink=true&tag=' +
-    t.context.affiliateId
+test('handleNavigation exits early when enabled is false', async (t) => {
+  const chrome = makeChrome()
+  ;(chrome.storage.sync.get as sinon.SinonStub).callsFake((_keys: unknown, cb: (r: Record<string, unknown>) => void) => {
+    cb({enabled: false})
+  })
+  const handler = new NavigationHandler(new HostRepository(hosts), chrome)
 
-  const modifiedUrl =
-    await t.context.navigationHandler.generateAmazonAffiliateLink(
-      originalUrl,
-      t.context.affiliateId,
-    )
+  await handler.handleNavigation(makeDetails('https://example.com/page'))
 
-  t.is(modifiedUrl, expectedUrl)
+  // tabs.update should never be called because the extension is disabled
+  t.false((chrome.tabs.update as sinon.SinonStub).called)
 })
 
-test('generateAmazonAffiliateLink should correctly update the affiliate tag for a proxy link', async (t) => {
-  const originalUrl =
-    'https://www.amazon.de/s?field-keywords=apple+airpods+wireless+ear+buds+bluetooth+headphones+with+lightning+charging+case+included+over+24+hours+of+battery+life+effortless+setup+for+iphone&geniuslink=true'
-  const expectedUrl =
-    'https://www.amazon.de/s?field-keywords=apple+airpods+wireless+ear+buds+bluetooth+headphones+with+lightning+charging+case+included+over+24+hours+of+battery+life+effortless+setup+for+iphone&geniuslink=true&tag=' +
-    t.context.affiliateId
+test('handleNavigation handles storage errors gracefully', async (t) => {
+  const chrome = makeChrome()
+  ;(chrome.storage.sync.get as sinon.SinonStub).callsFake((_keys: unknown, cb: (r: Record<string, unknown>) => void) => {
+    chrome.runtime.lastError = {message: 'Storage error'}
+    cb({})
+  })
+  const handler = new NavigationHandler(new HostRepository(hosts), chrome)
 
-  const modifiedUrl =
-    await t.context.navigationHandler.generateAmazonAffiliateLink(
-      originalUrl,
-      t.context.affiliateId,
-    )
-
-  t.is(modifiedUrl, expectedUrl)
+  // Should not throw
+  await t.notThrowsAsync(async () => {
+    await handler.handleNavigation(makeDetails('https://example.com/page'))
+  })
 })
-
-test('handleNavigation should ignore non-amazon and non-genius URLs', async (t) => {
-  const details = {url: 'https://www.example.com', tabId: 1}
-
-  await t.context.navigationHandler.handleNavigation(details)
-
-  t.is(
-    t.context.lastUpdatedTabUrl,
-    undefined,
-    'URL should not be modified for non-target URLs.',
-  )
-})
-
-test.serial(
-  'handleNavigation should not modify URL if affiliate ID is not found',
-  async (t) => {
-    const getSyncStub = t.context.navigationHandler.chrome.storage.sync.get
-    getSyncStub.callsArgWith(1, {[`${t.context.affiliateId}AffiliateId`]: null})
-
-    const details = {
-      url: 'https://www.amazon.com/dp/B0BKC67D3V?tag=oldTag',
-      tabId: 1,
-    }
-
-    await t.context.navigationHandler.handleNavigation(details)
-
-    t.is(
-      t.context.lastUpdatedTabUrl,
-      undefined,
-      'URL should not be modified if affiliate ID is not found.',
-    )
-  },
-)
-
-test.serial(
-  'handleNavigation should process search URL and modify it if affiliate ID is set',
-  async (t) => {
-    const details = {
-      url: 'https://www.amazon.de/s?k=apple+airpods+wireless+ear+buds+bluetooth+headphones+with+lightning+charging+case+included+over+24+hours+of+battery+life+effortless+setup+for+iphone&geniuslink=true&tag=macr05-21',
-      tabId: 123,
-    }
-    const expectedUrl =
-      'https://www.amazon.de/s?k=apple+airpods+wireless+ear+buds+bluetooth+headphones+with+lightning+charging+case+included+over+24+hours+of+battery+life+effortless+setup+for+iphone&geniuslink=true&tag=' +
-      t.context.affiliateId
-
-    await t.context.navigationHandler.handleNavigation(details)
-
-    t.is(
-      t.context.lastUpdatedTabUrl,
-      expectedUrl,
-      'URL should be modified and it should redirect to the affiliate link.',
-    )
-  },
-)

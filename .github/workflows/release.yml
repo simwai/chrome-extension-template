@@ -1,4 +1,4 @@
-name: Release Workflow
+name: Release
 
 on:
   push:
@@ -7,39 +7,35 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-release:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Set up Git identity
-        run: |
-          git config --global user.email "simwai@users.noreply.github.com"
-          git config --global user.name "simwai"
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.12.2'
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Run Tests
+      - name: Run tests
         run: npm test
 
-      - name: Build dist
-        run: npm run-script build
+      - name: Build
+        run: npm run build
 
-      - name: Create Release ZIP
-        run: npm run-script zip
+      - name: Create ZIP
+        run: npm run zip
 
       - name: Semantic Release
         env:
           GH_TOKEN: ${{ secrets.TOKEN }}
         run: npx semantic-release
 
-      - name: Create Release
+      - name: Upload release artifact
         uses: softprops/action-gh-release@v2
         with:
           files: chrome-extension-template.zip

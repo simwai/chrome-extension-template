@@ -1,18 +1,21 @@
-export type MockChrome = {
-  runtime: {
-    id: string
-  }
+// ---------------------------------------------------------------------------
+// test-types.ts — shared test utilities and type helpers
+// ---------------------------------------------------------------------------
+
+import type sinon from 'sinon'
+
+/** Minimal chrome stub shape — extend as your tests require more APIs. */
+export type ChromeStub = {
   storage: {
-    [x: string]: any
     sync: {
       get: sinon.SinonStub
+      set: sinon.SinonStub
     }
   }
   tabs: {
-    update: sinon.SinonSpy
+    update: sinon.SinonStub
   }
-}
-
-export type TestContext = {
-  affiliateId: string
+  runtime: {
+    lastError: chrome.runtime.LastError | undefined
+  }
 }

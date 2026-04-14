@@ -1,83 +1,31 @@
-import anyTest, {type TestFn} from 'ava'
+import test from 'ava'
+import {HostRepository} from '../host-repository.js'
 import {Validator} from '../validator.js'
-import {WebsiteRepository} from '../website-repository.js'
-import {type WebsiteData} from '../types.js'
-import {type TestContext} from './test-types.js'
 
-type ExtendedTestContext = TestContext & {
-  validator: Validator
-}
-const test: TestFn<ExtendedTestContext> =
-  anyTest as unknown as TestFn<ExtendedTestContext>
+const repo = new HostRepository([
+  {hostSuffix: 'example.com'},
+  {hostSuffix: 'other.io'},
+])
+const validator = new Validator(repo)
 
-test.beforeEach((t) => {
-  const websiteData: WebsiteData[] = [
-    {hostSuffix: 'amazon.com'},
-    {hostSuffix: 'example.com'},
-  ]
-  const websiteRepository = new WebsiteRepository(websiteData)
-  t.context.validator = new Validator(websiteRepository)
+// --- isSupportedHost ---
+
+test('isSupportedHost returns true for a registered host', (t) => {
+  t.true(validator.isSupportedHost(new URL('https://example.com/page')))
 })
 
-test('isSupportedWebsite returns true for supported websites', (t) => {
-  t.true(
-    t.context.validator.isSupportedWebsite(new URL('https://www.amazon.com')),
-  )
+test('isSupportedHost strips www prefix before matching', (t) => {
+  t.true(validator.isSupportedHost(new URL('https://www.example.com/page')))
 })
 
-test('isSupportedWebsite returns false for unsupported websites', (t) => {
-  t.false(
-    t.context.validator.isSupportedWebsite(
-      new URL('https://www.unsupported.com'),
-    ),
-  )
+test('isSupportedHost returns false for an unregistered host', (t) => {
+  t.false(validator.isSupportedHost(new URL('https://unrelated.com/page')))
 })
 
-test('validateAmazonWebsite returns true for valid Amazon product pages', (t) => {
-  t.true(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/dp/B0BKC67D3V'),
-    ),
-  )
-  t.true(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/gp/product/B0BKC67D3V'),
-    ),
-  )
-  t.true(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/gp/aw/d/B0BKC67D3V'),
-    ),
-  )
-  t.true(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/gp/offer-listing/B0BKC67D3V'),
-    ),
-  )
-})
+// --- isActionablePage ---
+// TODO: replace these with tests for your actual URL rules once you
+// implement isActionablePage() in validator.ts.
 
-test('validateAmazonWebsite returns true for valid Amazon search pages', (t) => {
-  t.true(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/s?k=example'),
-    ),
-  )
-})
-
-test('validateAmazonWebsite returns false for invalid Amazon URLs', (t) => {
-  t.false(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/ap/signin'),
-    ),
-  )
-  t.false(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/sspa/click'),
-    ),
-  )
-  t.false(
-    t.context.validator.validateAmazonWebsite(
-      new URL('https://www.amazon.com/some-other-page'),
-    ),
-  )
+test('isActionablePage returns true by default', (t) => {
+  t.true(validator.isActionablePage(new URL('https://example.com/any-path')))
 })

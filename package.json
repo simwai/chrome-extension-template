@@ -1,9 +1,18 @@
 {
   "name": "chrome-extension-template",
-  "license": "MIT",
   "version": "1.0.0",
+  "description": "Production-ready Chrome extension scaffold — Manifest V3, strict TypeScript, AVA, XO, Semantic Release",
+  "license": "MIT",
   "repository": {
     "url": "git+https://github.com/simwai/chrome-extension-template.git"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "rimraf dist && tsc && rimraf dist/tests/ && copyfiles -u 1 \"src/**/*.{html,json,png,css}\" dist",
+    "test": "rimraf dist && ava && rimraf dist/tests",
+    "lint": "xo --fix",
+    "format": "xo --fix --prettier",
+    "zip": "rimraf chrome-extension-template.zip && bestzip chrome-extension-template.zip dist"
   },
   "devDependencies": {
     "@ava/typescript": "^4.1.0",
@@ -18,14 +27,6 @@
     "sinon": "^17.0.1",
     "tsx": "^4.7.2",
     "xo": "^0.58.0"
-  },
-  "type": "module",
-  "scripts": {
-    "zip": "rimraf chrome-extension-template.zip && bestzip chrome-extension-template.zip dist",
-    "build": "rimraf dist && tsc && rimraf dist/tests/ && copyfiles -u 1 \"src/**/*.{html,json,png}\" dist",
-    "test": "rimraf dist && ava && rimraf dist/tests",
-    "lint": "xo --fix",
-    "format": "xo --fix --prettier"
   },
   "ava": {
     "failFast": true,
@@ -65,14 +66,11 @@
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/naming-convention": "off",
       "@typescript-eslint/parameter-properties": "off",
-      "@typescript-eslint/explicit-member-accessibility": [
-        "error"
-      ],
+      "@typescript-eslint/explicit-member-accessibility": ["error"],
       "@typescript-eslint/prefer-promise-reject-errors": "off",
       "@typescript-eslint/no-unsafe-call": "off",
       "unicorn/prefer-array-some": "off",
       "@typescript-eslint/no-unsafe-argument": "off"
     }
-  },
-  "description": "Production-ready Chrome extension scaffold — Manifest V3, strict TypeScript, AVA, XO, Semantic Release"
+  }
 }
