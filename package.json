@@ -1,7 +1,7 @@
 {
   "name": "chrome-extension-template",
   "version": "1.0.0",
-  "description": "Production-ready Chrome extension scaffold — Manifest V3, strict TypeScript, AVA, XO, Semantic Release",
+  "description": "Production-ready Chrome extension scaffold — Manifest V3, strict TypeScript, AVA, XO, release-it",
   "license": "MIT",
   "repository": {
     "url": "git+https://github.com/simwai/chrome-extension-template.git"
@@ -10,12 +10,15 @@
   "scripts": {
     "build": "rimraf dist && tsc && rimraf dist/tests/ && copyfiles -u 1 \"src/**/*.{html,json,png,css}\" dist",
     "test": "rimraf dist && ava && rimraf dist/tests",
-    "lint": "xo --fix",
+    "lint": "xo",
     "format": "xo --fix --prettier",
-    "zip": "rimraf chrome-extension-template.zip && bestzip chrome-extension-template.zip dist"
+    "zip": "rimraf chrome-extension-template.zip && bestzip chrome-extension-template.zip dist",
+    "release": "release-it",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@ava/typescript": "^4.1.0",
+    "@release-it/conventional-changelog": "^9.0.0",
     "@sindresorhus/tsconfig": "^5.0.0",
     "@types/chrome": "^0.0.266",
     "@types/sinon": "^17.0.3",
@@ -23,6 +26,8 @@
     "bestzip": "^2.2.1",
     "copyfiles": "^2.4.1",
     "husky": "^9.0.11",
+    "lint-staged": "^15.0.0",
+    "release-it": "^17.0.0",
     "rimraf": "^5.0.5",
     "sinon": "^17.0.1",
     "tsx": "^4.7.2",
@@ -42,6 +47,11 @@
       "compile": "tsc"
     },
     "concurrency": 3
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "xo --fix --prettier"
+    ]
   },
   "xo": {
     "envs": [

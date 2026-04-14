@@ -4,7 +4,6 @@
 
 <p align="center">
   <a href="https://github.com/simwai/chrome-extension-template/releases"><img src="https://img.shields.io/github/v/release/simwai/chrome-extension-template?color=7c3aed&labelColor=0d0d1a&logo=github" alt="Latest Release"/></a>
-  <a href="https://github.com/simwai/chrome-extension-template/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/simwai/chrome-extension-template/release.yml?color=a855f7&labelColor=0d0d1a&logo=github-actions&logoColor=white&label=CI" alt="CI"/></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-9333ea?labelColor=0d0d1a" alt="License: MIT"/></a>
   <img src="https://img.shields.io/badge/Manifest-V3-7c3aed?labelColor=0d0d1a&logo=googlechrome&logoColor=white" alt="Manifest V3"/>
   <img src="https://img.shields.io/badge/TypeScript-strict-a855f7?labelColor=0d0d1a&logo=typescript&logoColor=white" alt="TypeScript"/>
@@ -22,9 +21,9 @@ A minimal, opinionated scaffold for Chrome extensions. It provides the architect
 | Extension platform | Manifest V3, service worker entry point |
 | Language | Strict TypeScript via `@sindresorhus/tsconfig` |
 | Testing | AVA with concurrent execution, Sinon for chrome API mocks |
-| Code quality | XO (ESLint + Prettier in one) enforced by Husky on commit |
+| Code quality | XO (ESLint + Prettier in one) via lint-staged on every commit |
 | Build | Plain `tsc` — no bundler, no hidden magic |
-| Release | Semantic Release + GitHub Actions, ZIP artifact on every tag |
+| Release | release-it — bump, changelog, tag, GitHub release + ZIP, all local |
 
 ## Architecture
 
@@ -97,9 +96,11 @@ sequenceDiagram
 ```
 chrome-extension-template/
 ├── .github/
-│   ├── assets/banner.svg
-│   └── workflows/release.yml
-├── .husky/pre-commit            # format + test on every commit
+│   └── assets/banner.svg
+├── .husky/
+│   ├── pre-commit               # lint-staged: format staged .ts files
+│   └── pre-push                 # full test suite before any push
+├── .release-it.json             # release-it: bump, changelog, tag, GitHub release
 ├── src/
 │   ├── tests/
 │   │   ├── host-repository.test.ts
@@ -141,7 +142,7 @@ npm ci
 ```bash
 npm run build       # tsc → dist/
 npm test            # AVA test suite
-npm run format      # XO auto-fix + Prettier
+npm run format      # XO auto-fix + Prettier (whole project)
 ```
 
 ### Load in Chrome
@@ -162,28 +163,81 @@ Work through these files in order:
 6. **`src/options.html` + `src/options.ts`** — add your settings fields and storage keys
 7. **`src/tests/`** — update tests to cover your validation rules and handler logic
 
-## Release workflow
+## Workflows
 
-Push a `v*` tag or trigger the workflow manually. GitHub Actions handles the rest:
+### Commit
+
+lint-staged runs on `pre-commit` and only processes staged `.ts` files — fast and scoped.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#1a0a2e', 'primaryTextColor': '#e9d5ff', 'primaryBorderColor': '#7c3aed', 'lineColor': '#a855f7', 'secondaryColor': '#0d0d1a', 'background': '#0a0a18', 'mainBkg': '#1a0a2e', 'nodeBorder': '#7c3aed', 'clusterBkg': '#100e22', 'titleColor': '#c084fc', 'edgeLabelBackground': '#0d0d1a', 'fontFamily': 'Segoe UI, system-ui, sans-serif'}}}%%
 flowchart LR
-    TAG(["git push tag v*"]) --> CI
-    subgraph CI ["GitHub Actions"]
-        T[npm test] --> B[npm run build] --> Z[npm run zip] --> SR[Semantic Release] --> R[GitHub Release + .zip]
-    end
+    A([git commit]) --> B[Husky pre-commit]
+    B --> C[lint-staged]
+    C --> D[xo --fix --prettier\non staged .ts files]
+    D -->|pass| E([commit recorded])
+    D -->|fix failed| F([commit aborted])
 
-    style TAG fill:#1a0a2e,stroke:#7c3aed,color:#e9d5ff
-    style CI fill:#100e22,stroke:#7c3aed,color:#c084fc
-    style T fill:#1e0a3c,stroke:#9333ea,color:#e9d5ff
-    style B fill:#1e0a3c,stroke:#9333ea,color:#e9d5ff
-    style Z fill:#1e0a3c,stroke:#9333ea,color:#e9d5ff
-    style SR fill:#1e0a3c,stroke:#9333ea,color:#e9d5ff
-    style R fill:#1e0a3c,stroke:#9333ea,color:#e9d5ff
+    style A fill:#1a0a2e,stroke:#7c3aed,color:#e9d5ff
+    style B fill:#100e22,stroke:#9333ea,color:#c084fc
+    style C fill:#1e0a3c,stroke:#a855f7,color:#e9d5ff
+    style D fill:#1e0a3c,stroke:#a855f7,color:#e9d5ff
+    style E fill:#1a0a2e,stroke:#6d28d9,color:#e9d5ff
+    style F fill:#1a0a2e,stroke:#7c3aed,color:#9b72cf
 ```
 
-Add a `TOKEN` secret (GitHub personal access token with `repo` scope) to your repository settings before triggering a release.
+### Push
+
+The full test suite runs on `pre-push` — a heavier gate that runs once before the branch leaves your machine.
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#1a0a2e', 'primaryTextColor': '#e9d5ff', 'primaryBorderColor': '#7c3aed', 'lineColor': '#a855f7', 'secondaryColor': '#0d0d1a', 'background': '#0a0a18', 'mainBkg': '#1a0a2e', 'nodeBorder': '#7c3aed', 'clusterBkg': '#100e22', 'titleColor': '#c084fc', 'edgeLabelBackground': '#0d0d1a', 'fontFamily': 'Segoe UI, system-ui, sans-serif'}}}%%
+flowchart LR
+    A([git push]) --> B[Husky pre-push]
+    B --> C[npm test\nAVA suite]
+    C -->|pass| D([push proceeds])
+    C -->|fail| E([push aborted])
+
+    style A fill:#1a0a2e,stroke:#7c3aed,color:#e9d5ff
+    style B fill:#100e22,stroke:#9333ea,color:#c084fc
+    style C fill:#1e0a3c,stroke:#a855f7,color:#e9d5ff
+    style D fill:#1a0a2e,stroke:#6d28d9,color:#e9d5ff
+    style E fill:#1a0a2e,stroke:#7c3aed,color:#9b72cf
+```
+
+### Release
+
+Releases run entirely from your local machine via `npm run release`. No CI secrets, no pipeline to wait for.
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#1a0a2e', 'primaryTextColor': '#e9d5ff', 'primaryBorderColor': '#7c3aed', 'lineColor': '#a855f7', 'secondaryColor': '#0d0d1a', 'background': '#0a0a18', 'mainBkg': '#1a0a2e', 'nodeBorder': '#7c3aed', 'clusterBkg': '#100e22', 'titleColor': '#c084fc', 'edgeLabelBackground': '#0d0d1a', 'fontFamily': 'Segoe UI, system-ui, sans-serif'}}}%%
+flowchart LR
+    A([npm run release]) --> B[npm test]
+    B -->|pass| C[version bump\n+ CHANGELOG.md]
+    C --> D[npm run build]
+    D --> E[npm run zip]
+    E --> F[git tag + push]
+    F --> G[GitHub Release\n+ .zip artifact]
+    B -->|fail| H([aborted])
+
+    style A fill:#1a0a2e,stroke:#7c3aed,color:#e9d5ff
+    style B fill:#100e22,stroke:#9333ea,color:#c084fc
+    style C fill:#1e0a3c,stroke:#a855f7,color:#e9d5ff
+    style D fill:#1e0a3c,stroke:#a855f7,color:#e9d5ff
+    style E fill:#1e0a3c,stroke:#a855f7,color:#e9d5ff
+    style F fill:#1e0a3c,stroke:#a855f7,color:#e9d5ff
+    style G fill:#1a0a2e,stroke:#6d28d9,color:#e9d5ff
+    style H fill:#1a0a2e,stroke:#7c3aed,color:#9b72cf
+```
+
+Before your first release, export a GitHub token with `repo` scope:
+
+```bash
+export GITHUB_TOKEN=ghp_yourtoken
+npm run release
+```
+
+release-it reads `.release-it.json` and handles: conventional changelog generation → version bump → `npm run build` → `npm run zip` → git tag → GitHub Release with the `.zip` attached.
 
 ## Design decisions
 
@@ -198,6 +252,12 @@ XO bundles ESLint, Prettier, and a curated ruleset into a single dependency with
 
 **Why `chrome.storage.sync` over `localStorage`?**
 `sync` replicates settings across all of the user's Chrome profiles automatically, and is accessible from service workers where `localStorage` is not available.
+
+**Why lint-staged instead of running XO on the whole project pre-commit?**
+Running the linter over every file on each commit is slow in large projects. lint-staged scopes XO to only the files in the current staging area — sub-second feedback regardless of project size.
+
+**Why release-it instead of semantic-release?**
+semantic-release is built to run in CI and requires a token-bearing environment to push tags and create releases. release-it is designed for local execution — one command, interactive prompts, no pipeline dependency.
 
 ## Contributing
 

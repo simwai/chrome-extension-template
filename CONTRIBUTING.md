@@ -16,13 +16,17 @@ npm ci
 |---|---|
 | Build | `npm run build` |
 | Test | `npm test` |
-| Lint + format | `npm run format` |
+| Format (whole project) | `npm run format` |
+| Release | `npm run release` |
 
-Husky runs `npm run format` and `npm test` on every commit automatically — no manual step needed.
+Husky runs two automatic gates:
+
+- **pre-commit** — lint-staged runs `xo --fix --prettier` on staged `.ts` files only
+- **pre-push** — `npm test` runs the full AVA suite before any push leaves your machine
 
 ## Commit messages
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) so Semantic Release can generate changelogs correctly:
+Use [Conventional Commits](https://www.conventionalcommits.org/) so release-it can generate changelogs correctly:
 
 | Prefix | When to use |
 |---|---|
