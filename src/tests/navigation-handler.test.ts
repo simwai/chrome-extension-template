@@ -8,22 +8,22 @@ import {spy, type ChromeStub} from './test-types.js'
 // ---------------------------------------------------------------------------
 
 function makeChrome(
-  getImpl: (
+  getImplementation: (
     _keys: unknown,
-    cb: (result: Record<string, unknown>) => void,
-  ) => void = (_keys, cb) => {
-    cb({enabled: true})
+    callback: (result: Record<string, unknown>) => void,
+  ) => void = (_keys, callback) => {
+    callback({enabled: true})
   },
 ): ChromeStub {
   const stub: ChromeStub = {
     storage: {
       sync: {
-        get: spy(getImpl),
-        set: spy(async () => undefined),
+        get: spy(getImplementation),
+        set: spy(async (_data: Record<string, unknown>) => undefined),
       },
     },
     tabs: {
-      update: spy(() => undefined),
+      update: spy((_tabId: number, _properties: {url: string}) => undefined),
     },
     runtime: {
       lastError: undefined,
@@ -37,7 +37,7 @@ function makeDetails(
   url: string,
   tabId = 1,
 ): chrome.webNavigation.WebNavigationUrlCallbackDetails {
-  return {url, tabId, frameId: 0, parentFrameId: -1, processId: 0, timeStamp: Date.now()}
+  return {url, tabId, timeStamp: Date.now()}
 }
 
 const hosts = [{hostSuffix: 'example.com'}]
@@ -65,21 +65,21 @@ test('handleNavigation reads settings for a supported host', async (t) => {
 })
 
 test('handleNavigation exits early when enabled is false', async (t) => {
-  const chrome = makeChrome((_keys, cb) => {
-    cb({enabled: false})
+  const chrome = makeChrome((_keys, callback) => {
+    callback({enabled: false})
   })
   const handler = new NavigationHandler(new HostRepository(hosts), chrome)
 
   await handler.handleNavigation(makeDetails('https://example.com/page'))
 
-  // tabs.update must never be called when the extension is disabled
+  // Tabs.update must never be called when the extension is disabled
   t.is(chrome.tabs.update.calls.length, 0)
 })
 
 test('handleNavigation handles storage errors gracefully', async (t) => {
-  const chrome = makeChrome((_keys, cb) => {
+  const chrome = makeChrome((_keys, callback) => {
     chrome.runtime.lastError = {message: 'Storage error'}
-    cb({})
+    callback({})
   })
   const handler = new NavigationHandler(new HostRepository(hosts), chrome)
 
