@@ -1,0 +1,78 @@
+{
+  "name": "chrome-extension-template",
+  "license": "MIT",
+  "version": "1.0.0",
+  "repository": {
+    "url": "git+https://github.com/simwai/chrome-extension-template.git"
+  },
+  "devDependencies": {
+    "@ava/typescript": "^4.1.0",
+    "@sindresorhus/tsconfig": "^5.0.0",
+    "@types/chrome": "^0.0.266",
+    "@types/sinon": "^17.0.3",
+    "ava": "^6.1.2",
+    "bestzip": "^2.2.1",
+    "copyfiles": "^2.4.1",
+    "husky": "^9.0.11",
+    "rimraf": "^5.0.5",
+    "sinon": "^17.0.1",
+    "tsx": "^4.7.2",
+    "xo": "^0.58.0"
+  },
+  "type": "module",
+  "scripts": {
+    "zip": "rimraf chrome-extension-template.zip && bestzip chrome-extension-template.zip dist",
+    "build": "rimraf dist && tsc && rimraf dist/tests/ && copyfiles -u 1 \"src/**/*.{html,json,png}\" dist",
+    "test": "rimraf dist && ava && rimraf dist/tests",
+    "lint": "xo --fix",
+    "format": "xo --fix --prettier"
+  },
+  "ava": {
+    "failFast": true,
+    "failWithoutAssertions": false,
+    "verbose": true,
+    "files": [
+      "./src/tests/*.test.ts"
+    ],
+    "typescript": {
+      "rewritePaths": {
+        "src/": "dist/"
+      },
+      "compile": "tsc"
+    },
+    "concurrency": 3
+  },
+  "xo": {
+    "envs": [
+      "es2022",
+      "browser"
+    ],
+    "space": true,
+    "semicolon": false,
+    "prettier": true,
+    "ignore": "./dist, ./node_modules",
+    "endOfLine": "lf",
+    "extensions": [
+      ".ts"
+    ],
+    "files": [
+      "./src/**/*.ts"
+    ],
+    "rules": {
+      "no-await-in-loop": "off",
+      "unicorn/numeric-separators-style": "off",
+      "unicorn/prefer-module": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/naming-convention": "off",
+      "@typescript-eslint/parameter-properties": "off",
+      "@typescript-eslint/explicit-member-accessibility": [
+        "error"
+      ],
+      "@typescript-eslint/prefer-promise-reject-errors": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "unicorn/prefer-array-some": "off",
+      "@typescript-eslint/no-unsafe-argument": "off"
+    }
+  },
+  "description": "Production-ready Chrome extension scaffold — Manifest V3, strict TypeScript, AVA, XO, Semantic Release"
+}

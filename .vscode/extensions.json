@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "bradlc.vscode-tailwindcss",
+    "kamikillerto.vscode-colorize",
+    "vivaxy.vscode-conventional-commits",
+    "samverschueren.linter-xo",
+    "aaravb.chrome-extension-developer-tools"
+  ]
+}

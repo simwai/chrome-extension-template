@@ -1,0 +1,45 @@
+name: Release Workflow
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Git identity
+        run: |
+          git config --global user.email "simwai@users.noreply.github.com"
+          git config --global user.name "simwai"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.12.2'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Build dist
+        run: npm run-script build
+
+      - name: Create Release ZIP
+        run: npm run-script zip
+
+      - name: Semantic Release
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN }}
+        run: npx semantic-release
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: chrome-extension-template.zip
